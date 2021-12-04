@@ -131,3 +131,6 @@ dmypy.json
 #Datasets
 CMP_facade_DB_base
 CMP_facade_DB_base.zip
+
+#weights
+*.pt

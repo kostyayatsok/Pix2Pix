@@ -1,4 +1,13 @@
+import torch
+import numpy as np
+
+SEED = 42
+torch.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+np.random.seed(SEED)
+
 from train import Trainer
 
-trainer = Trainer(32)
+trainer = Trainer(1)
 trainer()
