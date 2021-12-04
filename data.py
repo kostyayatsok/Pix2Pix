@@ -11,10 +11,11 @@ import numpy as np
 class FacadeDataset(Dataset):
     def __init__(self, root, transforms) -> None:
         super().__init__()
-        data_path = os.path.join(*[root, 'base'])
+        data_path = os.path.join(*[root, 'CMP_facade_DB_base', 'base'])
         if not os.path.exists(data_path):
             os.system("wget https://cmp.felk.cvut.cz/~tylecr1/facade/CMP_facade_DB_base.zip")
-            os.system("unzip -q CMP_facade_DB_base.zip")
+            os.system("mkdir CMP_facade_DB_base")
+            os.system("unzip -q CMP_facade_DB_base.zip -d CMP_facade_DB_base/")
         self.masks = glob.glob(f'{data_path}/*.png')
         self.real = glob.glob(f'{data_path}/*.jpg')
         self.len = len(self.masks)

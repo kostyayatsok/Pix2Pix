@@ -14,7 +14,7 @@ class Trainer:
 #         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer)
         self.train_loader, self.val_loader = get_dataloaders(batch_size)
         self.criterion = nn.L1Loss()
-        self.n_epoch = 1000
+        self.n_epoch = 200
     def __call__(self):
         for epoch in range(self.n_epoch):
             print(f"Started epoch {epoch:04d}/{self.n_epoch:04d}:", end=' ', flush=True)
