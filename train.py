@@ -8,15 +8,15 @@ import torchvision.transforms.functional as F
 class Trainer:
     def __init__(self, batch_size) -> None:
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        self.generator = Generator(n_blocks=7, in_ch=1, hid_ch=16, out_ch=3).to (self.device)
+        self.generator = Generator(n_blocks=8, in_ch=1, hid_ch=64, out_ch=3).to (self.device)
         print(f"Create generator with {sum([p.numel() for p in self.generator.parameters()])} parameters")
         self.optimizer = torch.optim.Adam(self.generator.parameters(), lr=0.0002, betas=(0.5, 0.999))
 #         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer)
         self.train_loader, self.val_loader = get_dataloaders(batch_size)
         self.criterion = nn.L1Loss()
-        self.n_epoch = 200
+        self.n_epoch = 80
     def __call__(self):
-        for epoch in range(self.n_epoch):
+        for epoch in range(1, self.n_epoch+1):
             print(f"Started epoch {epoch:04d}/{self.n_epoch:04d}:", end=' ', flush=True)
             self.generator.train()
             losses = []
