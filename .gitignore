@@ -135,6 +135,9 @@ facades
 predictions
 *.tar
 *.gz
+*.zip
+*.jpg
+wandb/*
 
 #weights
 *.pt

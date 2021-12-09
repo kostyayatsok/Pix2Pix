@@ -62,7 +62,10 @@ class Generator(nn.Module):
         encoder.append(
             nn.Sequential(
                 nn.LeakyReLU(0.2),
-                nn.Conv2d(cur_ch, min(2**i, 8) * hid_ch, kernel_size=4, padding=1, stride=2),
+                nn.Conv2d(
+                    cur_ch, min(2**i, 8) * hid_ch,
+                    kernel_size=4, padding=1, stride=2
+                ),
             )
         )
         self.encoder = nn.ModuleList(encoder)
@@ -70,7 +73,8 @@ class Generator(nn.Module):
         decoder = []
         for i in range(n_blocks-2, -1, -1):
             dropout = 0.5 if i > 3 else 0.
-            decoder.append(UpBlock(cur_ch, min(2**i, 8) * hid_ch, dropout=dropout))
+            decoder.append(
+                UpBlock(cur_ch, min(2**i, 8) * hid_ch, dropout=dropout))
             cur_ch = 2 * min(2**i, 8) * hid_ch
         decoder.append(UpBlock(cur_ch, out_ch, nn.Tanh()))
         self.decoder = nn.ModuleList(decoder)
@@ -84,3 +88,39 @@ class Generator(nn.Module):
         for i, layer in enumerate(self.decoder):
             x = layer(x, residuals[-(i+1)])
         return x
+
+class DiscBlock(nn.Module):
+    def __init__(
+        self,
+        in_ch: int,
+        out_ch: int,
+        stride: int=2,
+    ) -> None:
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, kernel_size=4, padding=1, stride=stride),
+            nn.BatchNorm2d(out_ch),
+            nn.LeakyReLU(0.2),
+        )
+    def forward(self, x: torch.tensor) -> torch.tensor:
+        return self.net(x)
+
+class Discriminator(nn.Module):
+    def __init__(self, n_blocks: int, in_ch: int, hid_ch: int) -> None:
+        super().__init__()
+        layers = []
+        layers.append(
+            nn.Conv2d(in_ch, hid_ch, kernel_size=4, padding=1, stride=2)
+        )
+        cur_ch = hid_ch
+        for i in range(1, n_blocks):
+            layers.append(DiscBlock(cur_ch, min(2**i, 8) * hid_ch, stride=2))
+            cur_ch = min(2**i, 8) * hid_ch
+        layers.append(DiscBlock(cur_ch, min(2**i, 8) * hid_ch, stride=1))
+        layers.append(
+            nn.Conv2d(cur_ch, 1, kernel_size=4, padding=1, stride=1)
+        )
+        self.net = nn.Sequential(*layers)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
+        

@@ -31,20 +31,20 @@ class FacadeDataset(Dataset):
 #         target_t = self.transforms(target)-0.5
 #        input_t = input_t / torch.max(input_t)
         return {
-            'input': input,
-            'target': target,
+            'mask': input,
+            'real_image': target,
             'name': self.paths[index].split('/')[-1][:-4]
         }
 
 def get_facade_dataloaders(
-    batch_size, root='.', image_size=1024, val_split=0.05, num_workers=2
+    batch_size, root='.', num_workers=1
 ):
     train_loader = DataLoader(
         FacadeDataset(root, 'train'), batch_size=batch_size,
-        shuffle=True, pin_memory=True, num_workers=num_workers
+        shuffle=True, pin_memory=True#, num_workers=num_workers
     )
     val_loader = DataLoader(
         FacadeDataset(root, 'val'), batch_size=batch_size,
-        shuffle=False, pin_memory=True, num_workers=num_workers
+        shuffle=False, pin_memory=True#, num_workers=num_workers
     )
     return train_loader, val_loader
