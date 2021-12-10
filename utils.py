@@ -7,10 +7,10 @@ class MetricTracker:
     def __init__(self, eternals: List=[]) -> None:
         self.value = defaultdict(int)
         self.count = defaultdict(int)
-        self.eternals = eternals
+        self.eternals = tuple(eternals)
 
-    def __call__(self, batch, count=1, suffix='', exclude=[]) -> None:
-        for key, value in batch:
+    def __call__(self, batch, count=1, suffix=None, exclude=[]) -> None:
+        for key, value in batch.items():
             if key in exclude:
                 continue
             if isinstance(value, int) or isinstance(value, float):
@@ -19,16 +19,20 @@ class MetricTracker:
                 value = value.item()
             else:
                 continue
-            self.value[key+'_'+suffix] += value
-            self.count[key+'_'+suffix] += count
+            if suffix:
+                key=key+'_'+suffix
+            self.value[key] += value
+            self.count[key] += count
                 
-    def __getitem__(self, key, suffix='') -> float:
-        if key not in self.count or self.count == 0:
+    def __getitem__(self, key, suffix=None) -> float:
+        if suffix:
+            key = key+'_'+suffix
+        if key not in self.count or self.count[key] == 0:
             return None
-        res = self.value[key+'_'+suffix] / self.count[key+'_'+suffix]
-        if not key.emdswith(self.eternals):
-            self.value[key+'_'+suffix] = 0
-            self.count[key+'_'+suffix] = 0
+        res = self.value[key] / self.count[key]
+        if not key.endswith(self.eternals):
+            self.value[key] = 0
+            self.count[key] = 0
         return res
 
     def all(self):
@@ -39,6 +43,14 @@ class MetricTracker:
                 res[key] = avg
         return res
     
+    def get_group(self, suffix):
+        res = {}
+        for key in self.count:
+            if key.endswith(suffix):
+                avg = self.__getitem__(key)
+                if avg is not None:
+                    res[key] = avg
+        return res
     
 
 class Timer:
@@ -55,7 +67,7 @@ class Timer:
     def all(self):
         res = {}
         for name in self.end_time:
-            avg = self.get(name)
-            if avg is not None:
-                res[name] = avg
+            dur = self.get(name)
+            if dur >= 0:
+                res[name] = dur
         return res

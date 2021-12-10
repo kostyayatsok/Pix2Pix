@@ -1,6 +1,16 @@
 import torch
 import torch.nn as nn
 
+def init_weights(model):
+    def init_fn(m):
+        if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+            nn.init.normal_(m.weight.data, 0.0, 0.02)
+            m.bias.data.fill_(0.0)
+        if isinstance(m, nn.BatchNorm2d):
+            nn.init.normal_(m.weight.data, 1.0, 0.02)
+            nn.init.constant_(m.bias.data, 0.0)
+    model.apply(init_fn)
+
 class DownBlock(nn.Module):
     def __init__(
         self,
@@ -71,13 +81,15 @@ class Generator(nn.Module):
         self.encoder = nn.ModuleList(encoder)
         
         decoder = []
-        for i in range(n_blocks-2, -1, -1):
+        for i in range(n_blocks-1, 0, -1):
             dropout = 0.5 if i > 3 else 0.
             decoder.append(
-                UpBlock(cur_ch, min(2**i, 8) * hid_ch, dropout=dropout))
-            cur_ch = 2 * min(2**i, 8) * hid_ch
+                UpBlock(cur_ch, min(2**(i-1), 8) * hid_ch, dropout=dropout))
+            cur_ch = 2 * min(2**(i-1), 8) * hid_ch
         decoder.append(UpBlock(cur_ch, out_ch, nn.Tanh()))
         self.decoder = nn.ModuleList(decoder)
+        
+        init_weights(self)
     
     def forward(self, x: torch.tensor) -> torch.tensor:
         residuals = []
@@ -121,6 +133,7 @@ class Discriminator(nn.Module):
             nn.Conv2d(cur_ch, 1, kernel_size=4, padding=1, stride=1)
         )
         self.net = nn.Sequential(*layers)
+        
+        init_weights(self)    
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
-        
