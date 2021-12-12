@@ -136,6 +136,7 @@ predictions
 *.tar
 *.gz
 *.zip
+**/*.jpg
 *.jpg
 wandb/*
 

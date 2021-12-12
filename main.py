@@ -9,5 +9,5 @@ np.random.seed(SEED)
 
 from train import Trainer
 
-trainer = Trainer(32)
+trainer = Trainer(1, start_epoch=61, fid_freq=10)
 trainer()

@@ -4,6 +4,7 @@ from data import get_facade_dataloaders
 from loss import Pix2PixLoss
 from test import calc_fid
 from utils import Timer, MetricTracker 
+import numpy as np
 
 WANDB = True
 if WANDB:
@@ -14,18 +15,22 @@ if WANDB:
 class Trainer:
     def __init__(
         self, batch_size: int, log_freq: int=5,
-        save_freq: int=10, fid_freq: int=100,
+        save_freq: int=10, fid_freq: int=50,
+        start_epoch: int=0
     ) -> None:
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         self.generator = Generator(
             n_blocks=8, in_ch=3, hid_ch=64, out_ch=3).to(self.device)
+        if start_epoch > 0:
+            self.generator.load_state_dict(torch.load('generator.pt'))
         print(f"Created generator with "
               f"{sum([p.numel() for p in self.generator.parameters()])} "
               f"parameters")
 
         self.discriminator = Discriminator(
-            n_blocks=3, in_ch=6, hid_ch=64).to(self.device)
-        
+            n_blocks=4, in_ch=6, hid_ch=64).to(self.device)
+        if start_epoch > 0:
+            self.discriminator.load_state_dict(torch.load('discriminator.pt'))
         print(f"Created discriminator with"
               f" {sum([p.numel() for p in self.discriminator.parameters()])}"
               f" parameters")
@@ -35,11 +40,12 @@ class Trainer:
         self.d_opt = torch.optim.Adam(
             self.discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999))
 
-        self.train_loader, self.val_loader = get_facade_dataloaders(batch_size)
+        self.train_loader, self.val_loader = get_facade_dataloaders(batch_size, num_workers=3)
         
         self.criterion = Pix2PixLoss()
-        self.n_epoch = 10000
-        self.step = 0
+        self.n_epoch = 200
+        self.start_epoch = start_epoch
+        self.step = start_epoch * len(self.train_loader)
         
         self.log_freq = log_freq
         self.save_freq = save_freq
@@ -51,7 +57,7 @@ class Trainer:
     def __call__(self):
         self.generator.train()
         self.discriminator.train()
-        for self.epoch in range(1, self.n_epoch+1):
+        for self.epoch in range(self.start_epoch, self.n_epoch+1):
             self.timer.start('epoch_duration')
             print(
                 f"Epoch {self.epoch:04d}/{self.n_epoch:04d}:", flush=True)
@@ -63,7 +69,7 @@ class Trainer:
                 
                 self.process_batch(batch)
                 
-                if self.step % 50:
+                if self.step:
                     self.discriminator.requires_grad=False                
                     self.generator.requires_grad=True
                     batch['g_loss'].backward()
@@ -80,7 +86,7 @@ class Trainer:
 
                 if WANDB and self.step % self.log_freq == 0:
                     self.timer.start("log_train")
-                    self.log()
+                    self.log('train', batch)
                     self.timer.end("log_train")
                     self.tracker({"log_train": self.timer.get("log_train")}, suffix='time')
             self.timer.end("train")
@@ -101,18 +107,18 @@ class Trainer:
                 self.timer.end("save")
                 self.tracker({"save": self.timer.get("save")}, suffix='time', count=self.save_freq)
             if self.epoch % self.fid_freq == 0:
-                self.timer.start("fid_train")
-                self.tracker(
-                    {
-                        'fid': calc_fid(
-                            self.generator, self.val_loader,
-                            self.device, './facades/train/', './predictions/'
-                        ) 
-                    }
-                    , suffix='train'
-                )
-                self.timer.end("fid_train")
-                self.tracker({"fid_train": self.timer.get("fid_train")}, suffix='time', count=self.fid_freq)
+#                 self.timer.start("fid_train")
+#                 self.tracker(
+#                     {
+#                         'fid': calc_fid(
+#                             self.generator, self.val_loader,
+#                             self.device, './facades/train/', './predictions/'
+#                         ) 
+#                     }
+#                     , suffix='train'
+#                 )
+#                 self.timer.end("fid_train")
+#                 self.tracker({"fid_train": self.timer.get("fid_train")}, suffix='time', count=self.fid_freq)
 
                 self.timer.start("fid_val")
                 self.tracker(
@@ -128,7 +134,7 @@ class Trainer:
 
             if WANDB:
                 self.timer.start("log_val")
-                self.log('val')
+                self.log('val', batch)
                 self.timer.end("log_val") 
                 self.tracker({"log_val": self.timer.get("log_val")}, suffix='time')
             self.timer.end("epoch_duration")
@@ -145,7 +151,7 @@ class Trainer:
         
         self.criterion(batch)
         
-    def log(self, mode='train'):
+    def log(self, mode, batch=None):
         if not WANDB:
             return
         log = self.tracker.get_group(mode)
@@ -158,7 +164,28 @@ class Trainer:
             data = [[label, val] for (label, val) in time.items()]
             table = wandb.Table(data=data, columns = ["label", "value"])
             log["time"] = wandb.plot.bar(table, "label", "value", title="Time")
-        
-        #TODO images log
-        
+        if batch is not None:
+            idx = np.random.randint(batch['real_image'].size(0))
+            real_image = ((batch['real_image'][idx].detach().cpu().numpy().transpose([1, 2, 0]) + 0.5) * 255).astype(np.uint8)
+            fake_image = ((batch['fake_image'][idx].detach().cpu().numpy().transpose([1, 2, 0]) + 0.5) * 255).astype(np.uint8)
+            mask = (batch['mask'][idx].detach().cpu().numpy().transpose([1, 2, 0]) * 255).astype(np.uint8)
+            log[f'real_{mode}'] = wandb.Image(
+                real_image,
+                masks = {
+                    "input": {
+                        "mask_data": np.mean(mask, axis=2).astype(np.uint8)
+                    }
+                }
+            )
+            log[f'fake_{mode}'] = wandb.Image(
+                fake_image,
+                masks = {
+                    "input": {
+                        "mask_data": np.mean(mask, axis=2).astype(np.uint8)
+                    },
+                    "real": {
+                        "mask_data": np.mean(real_image, axis=2).astype(np.uint8)
+                    }
+                }
+            )
         wandb.log(log)
