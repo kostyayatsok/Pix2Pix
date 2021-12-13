@@ -22,12 +22,3 @@ def calc_fid(generator, loader, device, in_dir, out_dir='tmp/'):
     )
     fid = float(result.stdout.split()[-1])
     return fid
-if __name__ == "__main__":
-    out_dir = 'predictions/'
-    weights = 'generator.pt'
-    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-
-    generator = Generator(n_blocks=7, in_ch=3, hid_ch=64, out_ch=3).to(device)
-    generator.load_state_dict(torch.load(weights))
-    _, loader = get_facade_dataloaders(32)
-    calc_fid(generator, loader, device, out_dir)

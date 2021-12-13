@@ -6,7 +6,8 @@ from test import calc_fid
 from utils import Timer, MetricTracker 
 import numpy as np
 
-WANDB = True
+
+WANDB = False
 if WANDB:
     import wandb
     import matplotlib.pyplot as plt
@@ -28,7 +29,7 @@ class Trainer:
               f"parameters")
 
         self.discriminator = Discriminator(
-            n_blocks=4, in_ch=6, hid_ch=64).to(self.device)
+            n_blocks=3, in_ch=6, hid_ch=64).to(self.device)
         if start_epoch > 0:
             self.discriminator.load_state_dict(torch.load('discriminator.pt'))
         print(f"Created discriminator with"
@@ -42,10 +43,11 @@ class Trainer:
 
         self.train_loader, self.val_loader = get_facade_dataloaders(batch_size, num_workers=3)
         
-        self.criterion = Pix2PixLoss()
-        self.n_epoch = 200
+        self.criterion = Pix2PixLoss(_lambda=100.)
+        self.n_epoch = 400
         self.start_epoch = start_epoch
         self.step = start_epoch * len(self.train_loader)
+        self.g_warmup_steps = 2500
         
         self.log_freq = log_freq
         self.save_freq = save_freq
@@ -69,14 +71,10 @@ class Trainer:
                 
                 self.process_batch(batch)
                 
-                if self.step:
-                    self.discriminator.requires_grad=False                
-                    self.generator.requires_grad=True
+                if self.step < self.g_warmup_steps or self.step % 100:
                     batch['g_loss'].backward()
                     self.g_opt.step()
                 else:
-                    self.discriminator.requires_grad=True
-                    self.generator.requires_grad=False
                     batch['d_loss'].backward()
                     self.d_opt.step()
 
@@ -166,26 +164,13 @@ class Trainer:
             log["time"] = wandb.plot.bar(table, "label", "value", title="Time")
         if batch is not None:
             idx = np.random.randint(batch['real_image'].size(0))
+            
             real_image = ((batch['real_image'][idx].detach().cpu().numpy().transpose([1, 2, 0]) + 0.5) * 255).astype(np.uint8)
             fake_image = ((batch['fake_image'][idx].detach().cpu().numpy().transpose([1, 2, 0]) + 0.5) * 255).astype(np.uint8)
             mask = (batch['mask'][idx].detach().cpu().numpy().transpose([1, 2, 0]) * 255).astype(np.uint8)
-            log[f'real_{mode}'] = wandb.Image(
-                real_image,
-                masks = {
-                    "input": {
-                        "mask_data": np.mean(mask, axis=2).astype(np.uint8)
-                    }
-                }
-            )
-            log[f'fake_{mode}'] = wandb.Image(
-                fake_image,
-                masks = {
-                    "input": {
-                        "mask_data": np.mean(mask, axis=2).astype(np.uint8)
-                    },
-                    "real": {
-                        "mask_data": np.mean(real_image, axis=2).astype(np.uint8)
-                    }
-                }
-            )
+            
+            log[f'real_{mode}'] = wandb.Image(real_image)
+            log[f'fake_{mode}'] = wandb.Image(fake_image)
+            log[f'mask_{mode}'] = wandb.Image(mask)
+            
         wandb.log(log)

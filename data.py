@@ -22,12 +22,16 @@ class FacadeDataset(Dataset):
         return self.len
     def __getitem__(self, index: int) -> dict():
         input = torch.from_numpy(
-            np.array(Image.open(self.paths[index]))
-        ).transpose(1, 2).transpose(0, 1)
-        
+             np.array(Image.open(self.paths[index])).transpose((2, 0, 1))
+        )
+
         img_size = 256
-        target = input[:,:,:img_size] / 255. - 0.5
-        input = input[:,:,img_size:] / 255.
+        
+        target = input[:,:,:img_size]
+        input = input[:,:,img_size:]
+
+        target = target / 255. - 0.5
+        input = input / 255.
         
         img = torch.cat((input, target), dim=0)
         img = self.transforms(img)
