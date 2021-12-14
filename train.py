@@ -36,18 +36,22 @@ class Trainer:
               f" {sum([p.numel() for p in self.discriminator.parameters()])}"
               f" parameters")
 
-        self.g_opt = torch.optim.Adam(
+        self.g_opt = torch.optim.AdamW(
             self.generator.parameters(), lr=0.0002, betas=(0.5, 0.999))
-        self.d_opt = torch.optim.Adam(
+        self.d_opt = torch.optim.AdamW(
             self.discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999))
 
+#         self.g_opt = torch.optim.SGD(self.generator.parameters(), lr=0.0002)
+#         self.d_opt = torch.optim.SGD(self.discriminator.parameters(), lr=0.0002)
+
+        
         self.train_loader, self.val_loader = get_facade_dataloaders(batch_size, num_workers=3)
         
         self.criterion = Pix2PixLoss(_lambda=100.)
         self.n_epoch = 400
         self.start_epoch = start_epoch
         self.step = start_epoch * len(self.train_loader)
-        self.g_warmup_steps = 2500
+        self.g_warmup_steps = 0
         
         self.log_freq = log_freq
         self.save_freq = save_freq
@@ -58,8 +62,8 @@ class Trainer:
         
     def __call__(self):
         self.generator.train()
-        self.discriminator.train()
-        for self.epoch in range(self.start_epoch, self.n_epoch+1):
+        self.discriminator.train()        
+        for self.epoch in range(self.start_epoch+1, self.n_epoch+1):
             self.timer.start('epoch_duration')
             print(
                 f"Epoch {self.epoch:04d}/{self.n_epoch:04d}:", flush=True)
@@ -71,12 +75,14 @@ class Trainer:
                 
                 self.process_batch(batch)
                 
-                if self.step < self.g_warmup_steps or self.step % 100:
-                    batch['g_loss'].backward()
-                    self.g_opt.step()
-                else:
+                if self.step % 2 and batch['d_loss'] > 0.1:#
                     batch['d_loss'].backward()
+#                     torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 50)
                     self.d_opt.step()
+                else:
+                    batch['g_loss'].backward()
+#                     torch.nn.utils.clip_grad_norm_(self.generator.parameters(), 50)
+                    self.g_opt.step()
 
                 self.tracker(batch, suffix='train')
                 
@@ -162,15 +168,21 @@ class Trainer:
             data = [[label, val] for (label, val) in time.items()]
             table = wandb.Table(data=data, columns = ["label", "value"])
             log["time"] = wandb.plot.bar(table, "label", "value", title="Time")
+        
+            
         if batch is not None:
             idx = np.random.randint(batch['real_image'].size(0))
             
-            real_image = ((batch['real_image'][idx].detach().cpu().numpy().transpose([1, 2, 0]) + 0.5) * 255).astype(np.uint8)
-            fake_image = ((batch['fake_image'][idx].detach().cpu().numpy().transpose([1, 2, 0]) + 0.5) * 255).astype(np.uint8)
-            mask = (batch['mask'][idx].detach().cpu().numpy().transpose([1, 2, 0]) * 255).astype(np.uint8)
-            
+            real_image = ((batch['real_image'][idx].detach().cpu().numpy().transpose([1, 2, 0]) + 1) * 127.5).astype(np.uint8)
+            fake_image = ((batch['fake_image'][idx].detach().cpu().numpy().transpose([1, 2, 0]) + 1) * 127.5).astype(np.uint8)
+            mask = ((batch['mask'][idx].detach().cpu().numpy().transpose([1, 2, 0]) + 1) * 127.5).astype(np.uint8)
+            d_fake = (torch.sigmoid(batch['d_fake'][idx]).detach().cpu().numpy() * 255).astype(np.uint8)
+            d_real = (torch.sigmoid(batch['d_real'][idx]).detach().cpu().numpy() * 255).astype(np.uint8)
+
             log[f'real_{mode}'] = wandb.Image(real_image)
             log[f'fake_{mode}'] = wandb.Image(fake_image)
             log[f'mask_{mode}'] = wandb.Image(mask)
-            
+            log[f'd_fake_{mode}'] = wandb.Image(d_fake)
+            log[f'd_real_{mode}'] = wandb.Image(d_real)
+         
         wandb.log(log)

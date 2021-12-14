@@ -30,8 +30,8 @@ class FacadeDataset(Dataset):
         target = input[:,:,:img_size]
         input = input[:,:,img_size:]
 
-        target = target / 255. - 0.5
-        input = input / 255.
+        target = target / 127.5 - 1
+        input = input / 127.5 - 1
         
         img = torch.cat((input, target), dim=0)
         img = self.transforms(img)

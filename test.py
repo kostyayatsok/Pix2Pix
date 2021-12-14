@@ -13,7 +13,10 @@ def calc_fid(generator, loader, device, in_dir, out_dir='tmp/'):
         input = input.to(device)
         fake_images = generator(input)
         for image, n in zip(fake_images, name):
-            pil_image = F.to_pil_image(image+0.5)
+            assert (image <= 1).all()
+            assert (image >= -1).all()
+            image = (image+1)/2
+            pil_image = F.to_pil_image(image)
             pil_image.save(f"{out_dir}/{n}.jpg")
     
     result = run(

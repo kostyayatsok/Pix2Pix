@@ -3,9 +3,8 @@ import torch.nn as nn
 
 def init_weights(model):
     def init_fn(m):
-        if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+        if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear) or isinstance(m, nn.ConvTranspose2d):
             nn.init.normal_(m.weight.data, 0.0, 0.02)
-            m.bias.data.fill_(0.0)
         if isinstance(m, nn.BatchNorm2d):
             nn.init.normal_(m.weight.data, 1.0, 0.02)
             nn.init.constant_(m.bias.data, 0.0)
@@ -21,8 +20,8 @@ class DownBlock(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             activation,
-            nn.Conv2d(in_ch, out_ch, kernel_size=4, padding=1, stride=2),
-            nn.BatchNorm2d(out_ch),
+            nn.Conv2d(in_ch, out_ch, kernel_size=4, padding=1, stride=2, bias=False),
+            nn.BatchNorm2d(out_ch, track_running_stats=False),
         )
     def forward(self, x: torch.tensor) -> torch.tensor:
         return self.net(x)
@@ -40,8 +39,8 @@ class UpBlock(nn.Module):
         self.net = nn.Sequential(
             activation,
             nn.ConvTranspose2d(
-                in_ch, out_ch, kernel_size=4, padding=1, stride=2),
-            nn.BatchNorm2d(out_ch),
+                in_ch, out_ch, kernel_size=4, padding=1, stride=2, bias=False),
+            nn.BatchNorm2d(out_ch, track_running_stats=False),
             nn.Dropout(dropout)
         )
     def forward(self, x: torch.tensor, residual: torch.tensor) -> torch.tensor:
@@ -62,7 +61,7 @@ class Generator(nn.Module):
         super().__init__()
         encoder = []
         encoder.append(
-            nn.Conv2d(in_ch, hid_ch, kernel_size=4, padding=1, stride=2)
+            nn.Conv2d(in_ch, hid_ch, kernel_size=4, padding=1, stride=2, bias=False)
         )
         cur_ch = hid_ch
         for i in range(1, n_blocks-1):
@@ -74,7 +73,7 @@ class Generator(nn.Module):
                 nn.LeakyReLU(0.2),
                 nn.Conv2d(
                     cur_ch, min(2**i, 8) * hid_ch,
-                    kernel_size=4, padding=1, stride=2
+                    kernel_size=4, padding=1, stride=2, bias=False
                 ),
             )
         )
@@ -99,7 +98,7 @@ class Generator(nn.Module):
         residuals[0] = None
         for i, layer in enumerate(self.decoder):
             x = layer(x, residuals[-(i+1)])
-        return x
+        return torch.clip(x, -1, 1)
 
 class DiscBlock(nn.Module):
     def __init__(
@@ -110,8 +109,8 @@ class DiscBlock(nn.Module):
     ) -> None:
         super().__init__()
         self.net = nn.Sequential(
-            nn.Conv2d(in_ch, out_ch, kernel_size=4, padding=1, stride=stride),
-            nn.BatchNorm2d(out_ch),
+            nn.Conv2d(in_ch, out_ch, kernel_size=4, padding=1, stride=stride, bias=False),
+            nn.BatchNorm2d(out_ch, track_running_stats=False),
             nn.LeakyReLU(0.2),
         )
     def forward(self, x: torch.tensor) -> torch.tensor:
@@ -122,7 +121,7 @@ class Discriminator(nn.Module):
         super().__init__()
         layers = []
         layers.append(
-            nn.Conv2d(in_ch, hid_ch, kernel_size=4, padding=1, stride=2)
+            nn.Conv2d(in_ch, hid_ch, kernel_size=4, padding=1, stride=2, bias=False)
         )
         cur_ch = hid_ch
         for i in range(1, n_blocks):
@@ -130,7 +129,7 @@ class Discriminator(nn.Module):
             cur_ch = min(2**i, 8) * hid_ch
         layers.append(DiscBlock(cur_ch, min(2**i, 8) * hid_ch, stride=1))
         layers.append(
-            nn.Conv2d(cur_ch, 1, kernel_size=4, padding=1, stride=1)
+            nn.Conv2d(cur_ch, 1, kernel_size=4, padding=1, stride=1, bias=False)
         )
         self.net = nn.Sequential(*layers)
         

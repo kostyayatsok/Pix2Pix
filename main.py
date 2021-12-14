@@ -19,16 +19,17 @@ from test import calc_fid
 
 trainer = Trainer(
     batch_size=1,
-    log_freq=10,
-    save_freq=10,
-    fid_freq=15,
-    start_epoch=401
+    log_freq=200,
+    save_freq=20,
+    fid_freq=20,
+    start_epoch=0 if args.mode == 'train' else 1
 )
 
 
 if args.mode == 'train':
     trainer()
 elif args.mode == 'test':
+    trainer.generator.eval()
     fid = calc_fid(trainer.generator, trainer.val_loader, trainer.device, './facades/val/', './predictions_val/')
     print(f"FID: {fid}")
 else:
