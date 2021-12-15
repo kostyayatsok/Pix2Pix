@@ -1,6 +1,6 @@
 import torch
 from model import Generator, Discriminator
-from data import get_facade_dataloaders
+from data import get_maps_dataloaders
 from loss import Pix2PixLoss
 from test import calc_fid
 from utils import Timer, MetricTracker 
@@ -23,7 +23,7 @@ class Trainer:
         self.generator = Generator(
             n_blocks=8, in_ch=3, hid_ch=64, out_ch=3).to(self.device)
         if start_epoch > 0:
-            self.generator.load_state_dict(torch.load('generator_l1.pt'))
+            self.generator.load_state_dict(torch.load('generator.pt'))
         print(f"Created generator with "
               f"{sum([p.numel() for p in self.generator.parameters()])} "
               f"parameters")
@@ -45,10 +45,10 @@ class Trainer:
 #         self.d_opt = torch.optim.SGD(self.discriminator.parameters(), lr=0.0002)
 
         
-        self.train_loader, self.val_loader = get_facade_dataloaders(batch_size, num_workers=3)
+        self.train_loader, self.val_loader = get_maps_dataloaders(batch_size, num_workers=3)
         
         self.criterion = Pix2PixLoss(_lambda=100.)
-        self.n_epoch = 100
+        self.n_epoch = 200
         self.start_epoch = start_epoch
         self.step = start_epoch * len(self.train_loader)
         self.g_warmup_steps = 0
@@ -75,7 +75,7 @@ class Trainer:
                 
                 self.process_batch(batch)
                 
-                if False:#self.step % 2 and batch['d_loss'] > 0.7 * np.exp(-self.step/20000):
+                if self.step % 2 and batch['d_loss'] > 0.7 * np.exp(-self.step/80000):
                     batch['d_loss'].backward()
 #                     torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 50)
                     self.d_opt.step()
@@ -106,8 +106,8 @@ class Trainer:
                 
             if self.epoch % self.save_freq == 0:
                 self.timer.start("save")
-                torch.save(self.generator.state_dict(), "generator_l1.pt")
-                torch.save(self.discriminator.state_dict(), "discriminator_l1.pt")
+                torch.save(self.generator.state_dict(), "generator.pt")
+                torch.save(self.discriminator.state_dict(), "discriminator.pt")
                 self.timer.end("save")
                 self.tracker({"save": self.timer.get("save")}, suffix='time', count=self.save_freq)
             if self.epoch % self.fid_freq == 0:
@@ -129,7 +129,7 @@ class Trainer:
                     {
                         'fid': calc_fid(
                             self.generator, self.val_loader,
-                            self.device, './facades/val/', './predictions_val/'
+                            self.device, './maps_val/', './predictions_val/'
                         )
                     }, suffix='val'
                 )

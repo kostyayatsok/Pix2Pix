@@ -21,5 +21,5 @@ class Pix2PixLoss(nn.Module):
         batch['g_fake_loss'] = self.ce_criterion(batch['d_fake'], 1 - fake_labels)
         
         batch['d_loss'] = (batch['d_real_loss'] + batch['d_fake_loss']) / 2
-        batch['g_loss'] = batch['g_l1_loss']# * self._lambda + batch['g_fake_loss']
+        batch['g_loss'] = batch['g_l1_loss'] * self._lambda + batch['g_fake_loss']
     

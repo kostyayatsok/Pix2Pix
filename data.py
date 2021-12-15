@@ -8,13 +8,15 @@ from PIL import Image
 import torch
 import numpy as np
 
-class FacadeDataset(Dataset):
-    def __init__(self, root, part, transforms=lambda x : x) -> None:
+class Pix2PixDataset(Dataset):
+    def __init__(self, root, part, transforms=lambda x : x, name='facades') -> None:
         super().__init__()
-        data_path = os.path.join(*[root, 'facades', part])
+        data_path = os.path.join(*[root, name, part])
         if not os.path.exists(data_path):
-            os.system("wget http://efrosgans.eecs.berkeley.edu/pix2pix/datasets/facades.tar.gz")
-            os.system("tar -qxf facades.tar.gz")
+            print('download dataset...')
+            os.system(f"wget http://efrosgans.eecs.berkeley.edu/pix2pix/datasets/{name}.tar.gz")
+            print('unpack dataset...')
+            os.system(f"tar -xf {name}.tar.gz")
         self.paths = glob.glob(f'{data_path}/*.jpg')
         self.len = len(self.paths)
         self.transforms = transforms
@@ -25,7 +27,7 @@ class FacadeDataset(Dataset):
              np.array(Image.open(self.paths[index])).transpose((2, 0, 1))
         )
 
-        img_size = 256
+        img_size = input.size(2)//2
         
         target = input[:,:,:img_size]
         input = input[:,:,img_size:]
@@ -52,11 +54,32 @@ def get_facade_dataloaders(
         T.RandomHorizontalFlip()
     )
     train_loader = DataLoader(
-        FacadeDataset(root, 'train', transforms), batch_size=batch_size,
+        Pix2PixDataset(root, 'train', transforms), batch_size=batch_size,
         shuffle=True, pin_memory=True, num_workers=num_workers
     )
     val_loader = DataLoader(
-        FacadeDataset(root, 'val'), batch_size=batch_size,
+        Pix2PixDataset(root, 'val'), batch_size=batch_size,
+        shuffle=False, pin_memory=True, num_workers=num_workers
+    )
+    return train_loader, val_loader
+
+def get_maps_dataloaders(
+    batch_size, root='.', num_workers=1
+):
+    transforms = nn.Sequential(
+        T.Resize(286),
+        T.RandomCrop(256),
+        T.RandomHorizontalFlip()
+    )
+    transforms_val = nn.Sequential(
+        T.Resize(256),
+    )
+    train_loader = DataLoader(
+        Pix2PixDataset(root, 'train', transforms, name='maps'), batch_size=batch_size,
+        shuffle=True, pin_memory=True, num_workers=num_workers
+    )
+    val_loader = DataLoader(
+        Pix2PixDataset(root, 'val', transforms_val, name='maps'), batch_size=batch_size,
         shuffle=False, pin_memory=True, num_workers=num_workers
     )
     return train_loader, val_loader
