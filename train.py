@@ -23,7 +23,7 @@ class Trainer:
         self.generator = Generator(
             n_blocks=8, in_ch=3, hid_ch=64, out_ch=3).to(self.device)
         if start_epoch > 0:
-            self.generator.load_state_dict(torch.load('generator.pt'))
+            self.generator.load_state_dict(torch.load('generator_l1.pt'))
         print(f"Created generator with "
               f"{sum([p.numel() for p in self.generator.parameters()])} "
               f"parameters")
@@ -48,7 +48,7 @@ class Trainer:
         self.train_loader, self.val_loader = get_facade_dataloaders(batch_size, num_workers=3)
         
         self.criterion = Pix2PixLoss(_lambda=100.)
-        self.n_epoch = 400
+        self.n_epoch = 100
         self.start_epoch = start_epoch
         self.step = start_epoch * len(self.train_loader)
         self.g_warmup_steps = 0
@@ -75,7 +75,7 @@ class Trainer:
                 
                 self.process_batch(batch)
                 
-                if self.step % 2 and batch['d_loss'] > 0.7 * np.exp(-self.step/20000):
+                if False:#self.step % 2 and batch['d_loss'] > 0.7 * np.exp(-self.step/20000):
                     batch['d_loss'].backward()
 #                     torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 50)
                     self.d_opt.step()
@@ -106,8 +106,8 @@ class Trainer:
                 
             if self.epoch % self.save_freq == 0:
                 self.timer.start("save")
-                torch.save(self.generator.state_dict(), "generator.pt")
-                torch.save(self.discriminator.state_dict(), "discriminator.pt")
+                torch.save(self.generator.state_dict(), "generator_l1.pt")
+                torch.save(self.discriminator.state_dict(), "discriminator_l1.pt")
                 self.timer.end("save")
                 self.tracker({"save": self.timer.get("save")}, suffix='time', count=self.save_freq)
             if self.epoch % self.fid_freq == 0:
