@@ -85,7 +85,7 @@ class Generator(nn.Module):
             decoder.append(
                 UpBlock(cur_ch, min(2**(i-1), 8) * hid_ch, dropout=dropout))
             cur_ch = 2 * min(2**(i-1), 8) * hid_ch
-        decoder.append(UpBlock(cur_ch, out_ch, nn.Tanh()))
+        decoder.append(UpBlock(cur_ch, out_ch))
         self.decoder = nn.ModuleList(decoder)
         
         init_weights(self)
@@ -98,7 +98,7 @@ class Generator(nn.Module):
         residuals[0] = None
         for i, layer in enumerate(self.decoder):
             x = layer(x, residuals[-(i+1)])
-        return torch.clip(x, -1, 1)
+        return nn.Tanh()(x)
 
 class DiscBlock(nn.Module):
     def __init__(

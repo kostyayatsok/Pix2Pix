@@ -75,7 +75,7 @@ class Trainer:
                 
                 self.process_batch(batch)
                 
-                if self.step % 2 and batch['d_loss'] > 0.1:#
+                if self.step % 2 and batch['d_loss'] > 0.7 * np.exp(-self.step/20000):
                     batch['d_loss'].backward()
 #                     torch.nn.utils.clip_grad_norm_(self.discriminator.parameters(), 50)
                     self.d_opt.step()

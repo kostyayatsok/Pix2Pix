@@ -12,6 +12,11 @@ import argparse
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument('--mode', default='train',
                     help='train/test mode')
+parser.add_argument('--frm', default='./facades/val/',
+                    help='facades subfolder')
+parser.add_argument('--to', default='./predictions_val/',
+                    help='folder to save')
+
 args = parser.parse_args()
 
 from train import Trainer
@@ -30,7 +35,7 @@ if args.mode == 'train':
     trainer()
 elif args.mode == 'test':
     trainer.generator.eval()
-    fid = calc_fid(trainer.generator, trainer.val_loader, trainer.device, './facades/val/', './predictions_val/')
+    fid = calc_fid(trainer.generator, trainer.val_loader, trainer.device, args.frm, args.to)
     print(f"FID: {fid}")
 else:
     raise "Incorrect mode"
